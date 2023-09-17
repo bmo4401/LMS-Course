@@ -1,7 +1,8 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import env from '../utils/env';
+import { Role } from '../../constant/constant';
+import env from '../../utils/env';
 const emailRegexPattern: RegExp = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
 export interface IUser extends Document {
   name: string;
@@ -11,7 +12,7 @@ export interface IUser extends Document {
     public_id: string;
     url: string;
   };
-  role: string;
+  role: Role;
   isVerified: boolean;
   courses: { courseId: string }[];
   comparedPassword: (password: string) => Promise<boolean>;
@@ -72,20 +73,25 @@ userSchema.pre<IUser>('save', async function (next) {
 /* sign accessToken */
 userSchema.methods.SignAccessToken = function () {
   return jwt.sign({ id: this._id }, env.ACCESS_TOKEN, {
-    expiresIn: '5m',
+    expiresIn: '5h',
   });
 };
 
 /* sign refreshToken */
 userSchema.methods.SignRefreshToken = function () {
   return jwt.sign({ id: this._id }, env.REFRESH_TOKEN, {
-    expiresIn: '10m',
+    expiresIn: '10h',
   });
 };
 /* compare password */
 userSchema.methods.comparedPassword = async function (
   enteredPassword: string,
 ): Promise<boolean> {
+  console.log(
+    '❄️ ~ file: user.model.ts:89 ~ enteredPassword:',
+    enteredPassword,
+  );
+  console.log(this);
   return await bcrypt.compare(enteredPassword, this.password);
 };
 

@@ -1,20 +1,25 @@
-import { NextFunction, Request, Response } from 'express';
 import cloudinary from 'cloudinary';
-import { CatchAsyncError } from '../middleware/catchAsyncError';
-import ErrorHandler from '../utils/ErrorHandler';
-import { IUser, UserModel } from '../models/user.model';
-import jwt, { JwtPayload } from 'jsonwebtoken';
 import ejs from 'ejs';
+import { NextFunction, Request, Response } from 'express';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import path from 'path';
-import sendMail from '../utils/sendMail';
+import { IUser, UserModel } from '../models/user.model';
+import {
+  getAllUsersService,
+  getUserById,
+  updateUserRoleService,
+} from '../services/user.service';
+import { CatchAsyncError } from '../../middleware/catchAsyncError';
+import sendMail from '../../utils/sendMail';
+import ErrorHandler from '../../utils/ErrorHandler';
+import env from '../../utils/env';
 import {
   accessTokenOptions,
   refreshTokenOptions,
   sendToken,
-} from '../utils/jwt';
-import { redis } from '../utils/redis';
-import { getUserById } from '../services/user.service';
-import env from '../utils/env';
+} from '../../utils/jwt';
+import { redis } from '../../utils/redis';
+import { Role } from '../../constant/constant';
 /* register user */
 interface IRegistrationBody {
   name: string;
@@ -50,19 +55,15 @@ export const registrationUser = CatchAsyncError(
           data,
           template: 'activation-mail.ejs',
         });
-        console.log(activationCode);
-        console.log(activationToken.token);
         res.status(201).json({
           success: true,
           message: `Please check your email ${user.email} to activate your account`,
           activationToken: activationToken.token,
         });
       } catch (error: any) {
-        console.log('❄️ ~ file: user.controller.ts:51 ~ error:', error);
         return next(new ErrorHandler(error.message, 400));
       }
     } catch (error: any) {
-      console.log('❄️ ~ file: user.controller.ts:54 ~ error:', error);
       return next(new ErrorHandler(error.message, 400));
     }
   },
@@ -75,7 +76,7 @@ interface IActivationToken {
 export const createActivationToken = (user: any): IActivationToken => {
   const activationCode = Math.floor(1000 + Math.random() * 9000).toString();
   const token = jwt.sign({ user, activationCode }, env.ACTIVATION_SECRET, {
-    expiresIn: '5m',
+    expiresIn: '5h',
   });
   return { token, activationCode };
 };
@@ -95,7 +96,6 @@ export const activateUser = CatchAsyncError(
         activation_token,
         env.ACTIVATION_SECRET,
       ) as { user: IUser; activationCode: string };
-      console.log('❄️ ~ file: user.controller.ts:92 ~ newUser:', newUser);
       if (newUser.activationCode !== activation_code) {
         return next(new ErrorHandler('Invalid activation code', 400));
       }
@@ -132,6 +132,7 @@ export const loginUser = CatchAsyncError(
         return next(new ErrorHandler("User don't existing", 400));
       }
       const isPasswordMatch = await user.comparedPassword(password);
+
       if (!isPasswordMatch) {
         return next(new ErrorHandler('Invalid email or password', 400));
       }
@@ -173,18 +174,27 @@ export const updateAccessToken = CatchAsyncError(
       }
       const session = await redis.get(decoded.id);
       if (!session) {
-        return next(new ErrorHandler(message, 400));
+        return next(
+          new ErrorHandler('Please login to access this resources.', 400),
+        );
       }
       const user = JSON.parse(session);
       const accessToken = jwt.sign({ id: user._id }, env.ACCESS_TOKEN, {
         expiresIn: '5m',
       });
       const refreshToken = jwt.sign({ id: user._id }, env.REFRESH_TOKEN, {
-        expiresIn: '10m',
+        expiresIn: '10h',
       });
       req.user = user;
       res.cookie('access_token', accessToken, accessTokenOptions);
-      /*       res.cookie('refresh_token', refreshToken, refreshTokenOptions); */
+      res.cookie('refresh_token', refreshToken, refreshTokenOptions);
+      /* update redis */
+      await redis.set(
+        user._id,
+        JSON.stringify(user),
+        'EX',
+        604800 /* seconds - 7 days */,
+      );
       res.status(200).json({
         status: 'success',
         accessToken,
@@ -281,10 +291,7 @@ export const updateUserPassword = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { newPassword, oldPassword } = req.body as IUpdatePassword;
-      console.log(
-        '❄️ ~ file: user.controller.ts:286 ~ oldPassword:',
-        oldPassword,
-      );
+
       if (!newPassword || !oldPassword) {
         return next(
           new ErrorHandler('Please enter your old or new password', 400),
@@ -344,6 +351,52 @@ export const updateProfilePicture = CatchAsyncError(
       res.status(200).json({
         success: true,
         user,
+      });
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  },
+);
+
+/* get all users - for admin only */
+export const getAllUsers = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      getAllUsersService(res);
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  },
+);
+
+/* update user role - for admin only */
+interface IUpdateUserRole {
+  id: string;
+  role: Role;
+}
+export const updateUserRole = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, role }: IUpdateUserRole = req.body;
+      updateUserRoleService(id, role, res);
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  },
+);
+
+/* delete user - for admin only */
+export const deleteUser = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const user = await UserModel.findByIdAndDelete(id);
+      if (!user) {
+        return next(new ErrorHandler('User not found', 404));
+      }
+      await redis.del(id);
+      res.status(200).json({
+        success: true,
       });
     } catch (error: any) {
       return next(new ErrorHandler(error.message, 400));

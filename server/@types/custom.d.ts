@@ -14,3 +14,6 @@ declare global {
     }
   }
 }
+
+export type Roles = ['admin'];
+export type LayoutType = 'Banner' | 'FAQ' | 'Categories';
