@@ -1,4 +1,4 @@
-import { ICourse } from './models/course.model';
+import { ICourse } from './src/models/course.model';
 
 export const courseData: ICourse = {
   name: 'MERN Stack',

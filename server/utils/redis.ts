@@ -1,7 +1,7 @@
 import { Redis } from 'ioredis';
 import env from './env';
 const redisClient = () => {
-  if (env.REDIS_URL) {
+  if (process.env.REDIS_URL) {
     console.log('Redis connected');
     return env.REDIS_URL;
   }
