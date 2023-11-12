@@ -1,1 +1,1 @@
-## Server for LMS-Course with Express & Typescript
+# Server for LMS-Course with Express & Typescript
