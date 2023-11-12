@@ -10,7 +10,6 @@ import notificationRouter from '../routes/notification.routes';
 import analyticsRouter from '../routes/analytics.routes';
 import layoutRouter from '../routes/layout.routes';
 import { ErrorMiddleware } from '../middleware/error';
-
 /* body parser */
 app.use(express.json({ limit: '50mb' }));
 
@@ -19,7 +18,8 @@ app.use(cookieParser());
 /* cors */
 app.use(
   cors({
-    origin: env.ORIGIN,
+    origin: ['http://localhost:3000'],
+    credentials: true,
   }),
 );
 

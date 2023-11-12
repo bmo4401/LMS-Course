@@ -23,7 +23,7 @@ const sendMail = async (options: EmailOptions): Promise<void> => {
   });
   const { data, email, subject, template } = options;
   /* get the  path to the email template file */
-  const templatePath = path.join(__dirname, '../mails', template);
+  const templatePath = path.join(__dirname, '../mails/', template);
   const html: string = await ejs.renderFile(templatePath, data);
   const emailOptions = {
     from: env.SMTP_EMAIL,

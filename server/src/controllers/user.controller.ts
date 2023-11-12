@@ -45,7 +45,7 @@ export const registrationUser = CatchAsyncError(
       const activationCode = activationToken.activationCode;
       const data = { user: { name: user.name }, activationCode };
       await ejs.renderFile(
-        path.join(__dirname, '../mails/activation-mail.ejs'),
+        path.join(__dirname, '../../mails/activation-mail.ejs'),
         data,
       );
       try {
@@ -61,6 +61,7 @@ export const registrationUser = CatchAsyncError(
           activationToken: activationToken.token,
         });
       } catch (error: any) {
+        console.log('❄️ ~ file: user.controller.ts:64 ~ error:', error);
         return next(new ErrorHandler(error.message, 400));
       }
     } catch (error: any) {
